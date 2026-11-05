@@ -9,7 +9,7 @@ internet without changing the module.
 
 ```hcl
 module "route_table" {
-  source = "github.com/moveeeax/terraform-azurerm-route-table"
+  source = "github.com/moveeeax/terraform-azurerm-route-table?ref=v1.0.0"
 
   name                = "egress-rt"
   resource_group_name = "prod-rg"
@@ -52,12 +52,15 @@ plan followed by a failed apply. The module validates it up front instead.
 | Name      | Version          |
 |-----------|------------------|
 | terraform | >= 1.5           |
-| azurerm   | >= 3.112, < 5.0  |
+| azurerm   | >= 3.112, < 6.0  |
 
 `bgp_route_propagation_enabled` replaced the inverted
 `disable_bgp_route_propagation` in azurerm 3.112.0 and is the only spelling
 accepted by azurerm 4.x, hence the floor. Running the test suite additionally
 needs Terraform >= 1.7 for `mock_provider`; consuming the module does not.
+
+CI validates and tests the module against the 3.112.0 floor and the latest azurerm
+5.x release; 6.x is excluded until it has been tested.
 
 ## Inputs
 

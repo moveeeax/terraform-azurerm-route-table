@@ -8,7 +8,7 @@ terraform {
       # only spelling left in 4.x. Anything older resolves an incompatible
       # provider and fails `terraform validate` with "Unsupported argument".
       source  = "hashicorp/azurerm"
-      version = ">= 3.112, < 5.0"
+      version = ">= 3.112, < 6.0"
     }
   }
 }
