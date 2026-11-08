@@ -75,3 +75,29 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "subnet_ids" {
+  description = <<-EOT
+    Map of subnets to associate with the route table, keyed by a static label of
+    your choice (for example "app") with the subnet resource ID as the value.
+    Keys must be known at plan time; values may be IDs of subnets created in the
+    same apply. Empty (the default) creates no associations.
+  EOT
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for id in values(var.subnet_ids) :
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft.Network/virtualNetworks/[^/]+/subnets/[^/]+$", id))
+    ])
+    error_message = "Every subnet_ids value must be the full Azure resource ID of a subnet, e.g. \"/subscriptions/.../resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/snet\"."
+  }
+
+  # Two keys pointing at the same subnet would create two association
+  # resources that fight over it on every apply.
+  validation {
+    condition     = length(distinct([for id in values(var.subnet_ids) : lower(id)])) == length(var.subnet_ids)
+    error_message = "subnet_ids must not list the same subnet under more than one key."
+  }
+}
