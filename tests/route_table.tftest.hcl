@@ -2,7 +2,17 @@
 # The module itself still only requires >= 1.5 — do not raise required_version
 # for the sake of the tests.
 
-mock_provider "azurerm" {}
+# The route table ID is pinned to a well-formed one because
+# azurerm_subnet_route_table_association validates the shape of route_table_id,
+# and OpenTofu fills mocked attributes in during plan rather than leaving them
+# unknown.
+mock_provider "azurerm" {
+  mock_resource "azurerm_route_table" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/routeTables/test-rt"
+    }
+  }
+}
 
 variables {
   name                = "test-rt"
@@ -20,6 +30,67 @@ run "defaults" {
     condition     = length(azurerm_route_table.this.route) == 0
     error_message = "No routes should be created when var.routes is left at its default."
   }
+
+  assert {
+    condition     = length(azurerm_subnet_route_table_association.this) == 0
+    error_message = "No subnet associations should be created when subnet_ids is left at its default, so existing deployments plan unchanged."
+  }
+
+  assert {
+    condition     = output.association_ids == {}
+    error_message = "association_ids should be empty when no subnets are associated."
+  }
+}
+
+run "subnets_are_associated" {
+  command = plan
+
+  variables {
+    subnet_ids = {
+      app  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/app"
+      data = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/data"
+    }
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_subnet_route_table_association.this)) == toset(["app", "data"])
+    error_message = "One association should be created per subnet_ids key."
+  }
+
+  assert {
+    condition     = azurerm_subnet_route_table_association.this["app"].subnet_id == var.subnet_ids["app"]
+    error_message = "Each association should target the subnet given under its key."
+  }
+
+  assert {
+    condition     = azurerm_subnet_route_table_association.this["data"].route_table_id == "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/routeTables/test-rt"
+    error_message = "Each association should point at this module's route table."
+  }
+}
+
+run "rejects_subnet_name_instead_of_id" {
+  command = plan
+
+  variables {
+    subnet_ids = {
+      app = "app-subnet"
+    }
+  }
+
+  expect_failures = [var.subnet_ids]
+}
+
+run "rejects_the_same_subnet_under_two_keys" {
+  command = plan
+
+  variables {
+    subnet_ids = {
+      app       = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/app"
+      app_again = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/TEST-RG/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/app"
+    }
+  }
+
+  expect_failures = [var.subnet_ids]
 }
 
 run "virtual_appliance_route_is_accepted" {
